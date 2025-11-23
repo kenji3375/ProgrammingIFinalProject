@@ -8,38 +8,42 @@ inline double relu(double n) {
     return std::max(0.0, n);
 }
 
-struct Neuron {
-    double weight;
-    double bias;
+inline double randomDouble(double min, double max, int p) {
+    static thread_local std::mt19937_64 rng(std::random_device{}());
+    
+    // Scale factor for the desired precision
+    double scale = std::pow(10.0, p);
 
-    Neuron(double w=1, double b=0) {
-        weight  = w;
-        bias    = b;
+    // Integer distribution for scaled range
+    std::uniform_int_distribution<long long> dist(
+        static_cast<long long>(std::round(min * scale)),
+        static_cast<long long>(std::round(max * scale))
+    );
+
+    // Convert back to double with p-decimal precision
+    return dist(rng) / scale;
+}
+
+struct Neuron {
+    double bias;
+    std::vector<double> weights;
+    
+    Neuron(int weightsNumber) {
+        weights = std::vector<double>(weightsNumber, randomDouble(1,2,2));
+        bias    = randomDouble(0.5,2,2);
     }
 
     double activate(std::vector<double> layer) {
         double sum = 0;
         for(int i=0; i<layer.size(); ++i) {
-            sum += weight*layer[i];
+            sum += layer[i] * weights[i];
         }
-        return std::max(0.0, sum);
+        sum += bias;
+        return relu(sum);
     }
 };
 
-// struct Matrix {
-//     std::vector<double> mat;
 
-//     Matrix(int size) {
-//         mat = std::vector<double>(size, 0);
-//     }
-//     Matrix(int size, double values[]) {
-//         mat = std::vector<double>(size);
-//         int size;
-//         for(int i=0; i<sizeof(values)>>3; ++i) {
-
-//         }
-//     }
-// };
 
 struct MultiLayerPerceptron {
     std::vector<std::vector<Neuron>> neurons;
@@ -56,30 +60,40 @@ struct MultiLayerPerceptron {
 
         neurons = std::vector<std::vector<Neuron>>(layers);
 
-        for(int l=0; l<layers; ++l) {
-            neurons[l] = std::vector<Neuron>(layerSize[l], Neuron(1,1));
+        // neurons[0] = std::vector<Neuron>(layerSize[0], Neuron(1,1,1)); //first layer will be never used anyway
+
+        for(int l=1; l<layers; ++l) {
+            neurons[l] = std::vector<Neuron>(layerSize[l], Neuron(layerSize[l-1]));
+            for(int n=0; n<layerSize[l]; ++n) {
+                neurons[l][n] = Neuron(layerSize[l-1]);
+            }
         }
     }
 
     std::vector<double> out(std::vector<double> input) {
-        std::vector<double> prev = input;
-        std::vector<double> curr;
 
-        for(int l = 1; l<layers; ++l) {
-            curr = std::vector<double>(layerSize[l], 0.0);
-            for(int i=0; i<layerSize[l]; ++i) {
-                curr[i] = neurons[l][i].activate(prev);
+        if(input.size() == layerSize[0]) {
+
+            std::vector<double> tempLayer;
+
+            for(int L=1; L<layers; ++L) {
+                tempLayer = std::vector<double>(layerSize[L]);
+                for(int n=0; n<layerSize[L]; ++n) {
+                    tempLayer[n] = neurons[L][n].activate(input);
+                }
+                input = tempLayer;
             }
-            prev = curr;
-        }
+            return tempLayer;
 
-        return curr;
+        } else {
+            return std::vector<double>(1,0);
+        }
     }
 };
 
-int main(int argc, char const *argv[])
-{
-    std::vector<int> layers = {4,4,1};
+
+void test() {
+    std::vector<int> layers = {4,4,2};
 
     MultiLayerPerceptron nn(layers);
 
@@ -90,6 +104,15 @@ int main(int argc, char const *argv[])
     for(int i=0; i<output.size(); ++i) {
         std::cout<<std::fixed<<std::setw(5)<<output[i]<<"\n";
     }
+}
 
+int main(int argc, char const *argv[])
+{
+    test();
+    std::cout<<"\n\n";
+    test();
+    std::cout<<"\n\n";
+    test();
+    std::cout<<"\n\n";
     return 0;
 }

@@ -1,4 +1,3 @@
-correct the neuron structure
 correct the calculation of output
 
 add training process

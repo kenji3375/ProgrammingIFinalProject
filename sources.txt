@@ -1,11 +1,12 @@
-SFML library
-MNIST dataset
-web archive
-wikipedia
-
+SFML Library
+MNIST Dataset
+Web Archive
+Wikipedia
+Stack Overflow
 
 https://youtu.be/l-9ALe3U-Fg
 https://youtu.be/aircAruvnKk
+https://youtu.be/Ilg3gGewQ5U
 
 
 https://medium.com/theconsole/do-you-really-know-how-mnist-is-stored-600d69455937

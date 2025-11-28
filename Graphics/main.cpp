@@ -170,7 +170,7 @@ class Result {
 
 int main()
 {
-    sf::RenderWindow window(sf::VideoMode({WIDTH, HEIGHT}), "SFML works!");
+    sf::RenderWindow window(sf::VideoMode({WIDTH, HEIGHT}), "Digit recognition");
     // sf::CircleShape shape(100.f);
     // shape.setFillColor(sf::Color::Green);
 

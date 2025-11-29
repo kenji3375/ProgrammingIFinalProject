@@ -4,17 +4,36 @@
 #include <random>
 #include <iomanip>
 
-#define _USE_MATH_DEFINES
-#include <cmath>
+#define E 2.718281828459
 
+
+std::vector<double> softmaxLayer(std::vector<double> output) {
+    std::vector<double> probabilities(output.size());
+
+    double denominator{};
+
+    for (int i=0; i<output.size(); ++i) {
+        denominator += std::pow(E, output[i]);
+    }
+
+    for (int i=0; i<output.size(); ++i) {
+        probabilities[i] = std::pow(E, output[i])/denominator;
+    }
+
+    return probabilities;
+}
 
 inline double relu(double n) {
     return std::max(0.0, n);
 }
 
+inline double noActivation(double x) {
+    return x;
+}
+
 inline double fastSigmoid(double x) {
     // return (x/(1+abs(x)))/2 + 0.5;      // not exactly sigmod but is functionally the same
-    return (1/(1+std::pow(M_E, -x)));      // not exactly sigmod but is functionally the same
+    return (1/(1+std::pow(E, -x)));      // exactly sigmod 
 }
 
 inline double randomDouble(double min, double max, int p) {
@@ -56,6 +75,21 @@ struct Neuron {
         sum += bias;
         return activation(sum);
     }
+    
+    double lastSum;
+    double lastActivation;
+
+    double activateTraining(std::vector<double> layer) {
+        double sum = 0;
+        for(int i=0; i<layer.size(); ++i) {
+            sum += layer[i] * weights[i];
+        }
+        sum += bias;
+
+        lastSum = sum;
+        lastActivation = activation(sum);
+        return lastActivation;
+    }
 };
 
 
@@ -85,7 +119,7 @@ struct MultiLayerPerceptron {
         }
         neurons[layers-1] = std::vector<Neuron>(layerSize[layers-1], Neuron(layerSize[layers-2]));
         for(int n=0; n<layerSize[layers-1]; ++n) {
-            neurons[layers-1][n] = Neuron(layerSize[layers-2], fastSigmoid);
+            neurons[layers-1][n] = Neuron(layerSize[layers-2], noActivation);
         }
     }
 
@@ -102,23 +136,97 @@ struct MultiLayerPerceptron {
                 }
                 input = tempLayer;
             }
-            return tempLayer;
+            return softmaxLayer(tempLayer);
 
         } else {
-            return std::vector<double>(1,0);
+            return std::vector<double>(1,-1);
         }
     }
 
-    double loss(std::vector<double> input, std::vector<double> expected) {
+    std::vector<double> forwardPass(std::vector<double> input) {    //same as out, but saves results for each neuron
+
+        if(input.size() == layerSize[0]) {
+
+            std::vector<double> tempLayer;
+
+            for(int L=1; L<layers; ++L) {
+                tempLayer = std::vector<double>(layerSize[L]);
+                for(int n=0; n<layerSize[L]; ++n) {
+                    tempLayer[n] = neurons[L][n].activateTraining(input);
+                }
+                input = tempLayer;
+            }
+            return softmaxLayer(tempLayer);
+
+        } else {
+            return std::vector<double>(1,-1);
+        }
+    }
+
+    double loss(std::vector<double> input, std::vector<double> expected) {  //  MSE - mean squared error
         double loss{};
         std::vector<double> res;
         res = this->out(input);
 
         for(int i=0; i<res.size(); ++i) {
-            loss += res[i]*res[i];
+            loss += (res[i]*res[i])/2;
         }
 
         return loss;
+    }
+
+    void backpropagate(std::vector<double> input, std::vector<double> expected, double learningRate, bool showdata=false) {
+        std::vector<double> output = out(input);
+        double loss = this->loss(output, expected);
+
+        std::vector<std::vector<double>> deltas(layers);
+
+        for(int i=0; i<layers; ++i) {
+            deltas[i] = std::vector<double>(layerSize[i], 0);
+        }
+
+        for(int i=0; i<deltas.size(); ++i) {    // because softmax is used instead of ReLU, this layer will be treated differently
+            deltas[layers-1][i] = output[i] - expected[i];
+        }
+        
+        // deltas for hidden layers
+        double sum;
+        for(int L=layers-2; L>0; --L) {
+            for(int i=0; i<layerSize[L]; ++i) {
+                sum=0;
+                for(int k=0; k<layerSize[L+1]; ++k) {
+                    sum += neurons[L+1][k].weights[i] * deltas[L+1][k];
+                }
+                // sum *= neurons[L][i].lastSum's derivative //it's always 1
+                deltas[L][i] = sum;
+            }
+        }
+
+        //gradient will not be calculated separately
+        // std::vector<std::vector<std::vector<double>>> weight_gradient = std::vector<std::vector<std::vector<double>>>(layers);
+        //std::vector<std::vector<double>> bias_gradient   = ;
+
+        for(int n=0; n<layerSize[1]; ++n) {
+            for(int w=0; w<layerSize[0]; ++w) {
+                neurons[1][n].weights[w] -= learningRate * deltas[1][n] * input[w];
+            }
+            neurons[1][n].bias -= learningRate * deltas[1][n];
+        }
+        for(int L=2; L<layers; ++L) {
+            for(int n=0; n<layerSize[L]; ++n) {
+                for(int w=0; w<layerSize[L-1]; ++w) {
+                    neurons[L][n].weights[w] -= learningRate * deltas[L][n] * neurons[L-1][n].lastActivation;
+                }
+                neurons[L][n].bias -= learningRate * deltas[L][n];
+            }
+        }
+    }
+
+    void trainBatch(std::vector<std::vector<std::vector<double>>> batch, double learningRate) {
+        for(int epoch=0; epoch<batch.size(); ++epoch) {
+            backpropagate(batch[epoch][0], batch[epoch][1], learningRate);
+        }
+        std::cout<<"Training on batch finished. \n";
     }
 };
 
@@ -148,7 +256,7 @@ void test() {
     for(int i=0; i<output.size(); ++i) {
         std::cout<<std::fixed<<std::setw(5)<<output[i]<<"\n";
     }
-    std::vector<double> expected = {1, 0, 0.5, 0, 0, 1, 1};
+    std::vector<double> expected = {1, 0, 0, 0, 0, 0, 0};
 
     double loss = nn.loss(input, expected);
     std::cout<<"loss: "<<loss<<"\n";
@@ -157,10 +265,10 @@ void test() {
 int main(int argc, char const *argv[])
 {
     test();
-    std::cout<<"\n\n";
-    test();
-    std::cout<<"\n\n";
-    test();
-    std::cout<<"\n\n";
+    // std::cout<<"\n\n";
+    // test();
+    // std::cout<<"\n\n";
+    // test();
+    // std::cout<<"\n\n";
     return 0;
 }

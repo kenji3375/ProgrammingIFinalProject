@@ -8,8 +8,27 @@
 #include <cstdint>
 #include <algorithm>
 
+#include <string>
+#include <sstream>
 
 #define E 2.718281828459
+
+// inline std::string double_to_string(double n) {
+//     std::string str;
+//     std::ostringstream oss;
+//     oss << std::setprecision(20) << n;
+//     str = oss.str();
+
+//     return str;
+// }
+
+
+inline std::string double_to_string(double value) {
+    std::ostringstream oss;
+    oss << std::setprecision(std::numeric_limits<double>::max_digits10) << value;
+    return oss.str();
+}
+
 
 
 std::vector<double> softmaxLayer(std::vector<double> output) {
@@ -229,8 +248,42 @@ struct MultiLayerPerceptron {
         }
         std::cout<<"Training on batch finished. \n";
     }
-};
 
+    void printWeightsBiases() {
+        std::string code = "weights = {\n";
+        for(int L=1; L<layers; ++L) {
+            code += "   {\n";
+            for(int n=0; n<layerSize[L]; ++n) {
+                code += "       {\n";
+                for(int w=0; w<neurons[L][n].weights.size(); ++w) {
+                    code += "           "+ double_to_string(neurons[L][n].weights[w]);
+                    code += ", \n";
+                }
+                code += "       }\n";
+
+            }
+            code += "   },";
+        }
+        code += "};\n\n";
+        
+        code += "biases = {\n";
+        for(int L=1; L<layers; ++L) {
+            code += "   {\n";
+            for(int n=0; n<layerSize[L]; ++n) {
+                code += "       " + double_to_string(neurons[L][n].bias) + ",\n";
+                // code += "       " + std::format("{:.2f}", neurons[L][n].bias) + ",\n";
+            }
+            code += "   },\n";
+        }
+        code += "};\n";
+        
+        
+        std::ofstream file("output.txt");
+        file << code;
+        file.close();
+    }
+    
+};
 
 
 
@@ -390,6 +443,22 @@ void testLoss(MultiLayerPerceptron nn, NeuralData data) {
 }
 
 
+// void saveNN(MultiLayerPerceptron nn) {  //i will just turn it into cpp code with hardcoded weights and biases
+//     std::string code;
+//     code += "{\n";
+//     for(int L=1; L<nn.layers; ++L) {
+//         code +="    {";
+//         for(int n=0; n<nn.layerSize[L]; ++n) {
+//             std::string word= "Neuron(" + nn.layerSize[L-1];
+//             code += word;
+//         }
+//         code +="},\n";
+//     }
+//     code += "};\n";
+
+//     std::cout<<code;
+// }
+
 void test() {
     // std::string labelsName = "t10k-labels.idx1-ubyte";
     // std::string imagesName = "t10k-images.idx3-ubyte";
@@ -407,10 +476,16 @@ void test() {
     
     testLoss(nn,data);
     
-    nn.trainBatch(data.getBatch(0,60000), 0.001);
+    nn.trainBatch(data.getBatch(0,60000), 0.002);
     
     testLoss(nn, data);
     
+    // saveNN(nn);
+    std::cout<<"weights = ";
+    nn.printWeightsBiases();
+    std::cout<<"biases = ";
+    // nn.printBiases();
+
     // data.display(0);
 }
 
